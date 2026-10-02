@@ -22,7 +22,8 @@ export interface CollabUser {
 export interface CollabHandle {
   provider: HocuspocusProvider;
   doc: Y.Doc;
-  binding: MonacoBinding;
+  /** Binding baru tersedia setelah provider selesai sync (bisa null). */
+  readonly binding: MonacoBinding | null;
   destroy: () => void;
 }
 
@@ -96,20 +97,47 @@ export function createCollab(opts: {
   const model = opts.editor.getModel();
   if (!model) throw new Error("Monaco model tidak tersedia");
 
-  const binding = new MonacoBinding(
-    doc.getText("content"),
-    model,
-    new Set([opts.editor]),
-    awareness ?? undefined,
-  );
+  /**
+   * Binding Yjs <-> Monaco HANYA dibuat setelah provider selesai sync.
+   *
+   * PENTING: `MonacoBinding` langsung memanggil `monacoModel.setValue(ytext)`
+   * saat dibuat. Bila dipanggil sebelum sync selesai, `ytext` masih KOSONG,
+   * sehingga editor yang sudah berisi dokumen (dari `defaultValue`) akan
+   * DIKOSONGKAN. Perubahan kosong itu lalu dikirim ke server dan menimpa
+   * file asli menjadi kosong -> kehilangan data.
+   */
+  let binding: MonacoBinding | null = null;
+  const attachBinding = () => {
+    if (binding) return;
+    const m = opts.editor.getModel();
+    if (!m) return;
+    binding = new MonacoBinding(
+      doc.getText("content"),
+      m,
+      new Set([opts.editor]),
+      awareness ?? undefined,
+    );
+  };
+
+  if (provider.synced) {
+    attachBinding();
+  } else {
+    const onSynced = () => {
+      attachBinding();
+      provider.off("synced", onSynced);
+    };
+    provider.on("synced", onSynced);
+  }
 
   return {
     provider,
     doc,
-    binding,
+    get binding() {
+      return binding;
+    },
     destroy: () => {
       try {
-        binding.destroy();
+        binding?.destroy();
       } catch {
         /* ignore */
       }

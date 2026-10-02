@@ -74,11 +74,38 @@ function persistDoc(docName: string, document: Y.Doc): void {
     // 2) tulis teks ke file sumber (source of truth untuk compile)
     const text = document.getText("content").toString();
     const target = workspaceFile(projectId, file);
+
+    // PENGAMAN ANTI DATA-LOSS:
+    // Jangan pernah menimpa file yang BERISI dengan konten KOSONG. Kondisi ini
+    // terjadi bila binding Monaco terbentuk sebelum Y.Doc selesai sync, sehingga
+    // editor dikosongkan lalu perubahan kosong itu tersimpan. File yang isinya
+    // hilang jauh lebih mahal daripada snapshot yang tertunda.
+    if (text.length === 0 && fileHasContent(target)) {
+      console.warn(
+        `[collab] tolak menulis konten kosong ke ${target} (file berisi, ${fileSizeOf(target)} byte). Snapshot tetap disimpan.`,
+      );
+      return;
+    }
+
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, text, "utf8");
   } catch (err) {
     console.error("[collab] gagal persist", docName, err);
   }
+}
+
+/** Ukuran file, atau 0 bila tidak ada. */
+function fileSizeOf(p: string): number {
+  try {
+    return fs.statSync(p).size;
+  } catch {
+    return 0;
+  }
+}
+
+/** Apakah file ada dan berisi (bukan 0 byte). */
+function fileHasContent(p: string): boolean {
+  return fileSizeOf(p) > 0;
 }
 
 /** Muat snapshot biner bila ada. */
@@ -139,11 +166,25 @@ const hocuspocus = new Server({
     return { projectId: parsed.projectId, file: parsed.file };
   },
   async onLoadDocument({ documentName, document }) {
+    // IDEMPOTEN: Hocuspocus bisa memanggil hook ini lebih dari sekali untuk
+    // dokumen yang sama (mis. setelah unload lalu ada koneksi baru). Tanpa
+    // penjagaan, isi file akan di-insert ULANG ke Y.Text yang sudah berisi
+    // sehingga dokumen terduplikasi (mis. 475 -> 950 karakter).
+    const text = document.getText("content");
+    if (text.length > 0) return document;
+
     const snap = loadSnapshot(documentName);
     if (snap) {
       Y.applyUpdate(document, snap);
+      // Bila snapshot ada tapi isinya kosong (mis. sisa keadaan rusak),
+      // pulihkan dari file sumber di disk.
+      if (document.getText("content").length === 0) {
+        const plain = loadPlainFile(documentName);
+        if (plain.length > 0) document.getText("content").insert(0, plain);
+      }
     } else {
-      document.getText("content").insert(0, loadPlainFile(documentName));
+      const plain = loadPlainFile(documentName);
+      if (plain.length > 0) text.insert(0, plain);
     }
     return document;
   },
