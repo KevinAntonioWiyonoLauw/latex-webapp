@@ -70,8 +70,9 @@ services:
     volumes:
       # Dokumen user di bind-mount host -> gampang di-backup.
       - ${LATEX_DATA_PATH:-/opt/latex-webapp/data}:/data
-      # Cache bundle TeX Tectonic: agar tidak unduh ulang tiap restart container.
-      - tectonic-cache:/root/.cache/Tectonic
+      # Cache bundle TeX sudah di-bake di dalam image (lihat server.Dockerfile),
+      # jadi TIDAK di-mount volume di sini — kalau di-mount, volume kosong akan
+      # menutupi cache bawaan image dan Tectonic malah mengunduh ulang.
     depends_on:
       postgres:
         condition: service_healthy
@@ -141,4 +142,3 @@ networks:
 volumes:
   pgdata:
   redisdata:
-  tectonic-cache:

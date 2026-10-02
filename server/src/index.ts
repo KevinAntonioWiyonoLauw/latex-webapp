@@ -7,7 +7,7 @@ import { HOST, IS_PROD, MAX_UPLOAD_BYTES, PORT, WEB_ORIGINS } from "./config.js"
 import { Storage } from "./storage/index.js";
 import { CompilerManager } from "./compiler/manager.js";
 import { tectonicAvailable } from "./compiler/tectonic.js";
-import { closeDb, pingDb } from "./db/index.js";
+import { closeDb, pingDb, runMigrations } from "./db/index.js";
 import { registerAuthRoutes } from "./auth/routes.js";
 import { requireAuth } from "./auth/middleware.js";
 import { projectRoutes } from "./routes/projects.js";
@@ -58,6 +58,15 @@ async function main(): Promise<void> {
   await storage.init();
   const compiler = new CompilerManager(storage);
   const git = new GitHistory(DATA_DIR);
+
+  // Siapkan skema database (idempoten) agar deploy tidak perlu langkah manual.
+  if (await pingDb()) {
+    await runMigrations();
+  } else {
+    app.log.error(
+      "Tidak bisa konek ke PostgreSQL. Periksa DATABASE_URL / jalankan database.",
+    );
+  }
 
   // Snapshot riwayat otomatis setiap compile sukses.
   compiler.setOnSuccess(async (projectId) => {
