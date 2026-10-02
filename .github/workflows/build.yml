@@ -6,6 +6,13 @@
 #   * pull request   -> build saja (tidak push), sebagai gate
 #   * manual         -> workflow_dispatch
 #
+# `concurrency` mencegah dua build berjalan bersamaan: tanpa ini, dua push
+# berurutan bisa saling menimpa tag `:latest` (build lama selesai belakangan
+# lalu menimpa image build baru). Build lama yang masih jalan dibatalkan.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+#
 # Tiga image dipublikasikan:
 #   ghcr.io/<owner>/latex-webapp-server   (Fastify + Tectonic + pandoc)
 #   ghcr.io/<owner>/latex-webapp-collab   (Hocuspocus / Yjs, Node)
