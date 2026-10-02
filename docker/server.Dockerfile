@@ -50,11 +50,15 @@ RUN apt-get update \
 # Dijalankan sebagai root agar cache mendarat di /root/.cache/Tectonic
 # (proses server di container ini juga berjalan sebagai root).
 #
+# Dokumen warmup sengaja memuat paket yang dipakai template bawaan aplikasi
+# (amsmath, graphicx, hyperref) plus paket umum lain. Tanpa ini, cache hanya
+# berisi article.cls dan compile pertama pengguna memakan ~30 detik.
+#
 # Warmup ini hanya OPTIMASI, bukan syarat: bila jaringan sedang bermasalah,
 # build tetap harus sukses dan Tectonic akan mengunduh bundle saat runtime.
 # Karena itu kegagalannya sengaja tidak menggagalkan build (retry 3x lalu `true`).
-RUN printf '\\documentclass{article}\\begin{document}warmup\\end{document}\n' > /tmp/warm.tex \
- && mkdir -p /tmp/warm-out \
+COPY docker/warmup.tex /tmp/warm.tex
+RUN mkdir -p /tmp/warm-out \
  && for i in 1 2 3; do \
       tectonic -X compile /tmp/warm.tex --outdir /tmp/warm-out && break; \
       echo "[warmup] percobaan $i gagal, ulangi..."; sleep 5; \

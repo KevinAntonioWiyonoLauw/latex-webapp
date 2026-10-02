@@ -1,0 +1,98 @@
+% Dokumen pemanasan cache Tectonic.
+%
+% Dipakai saat BUILD IMAGE (lihat docker/server.Dockerfile) untuk mengunduh
+% paket-paket yang paling sering dipakai, sehingga compile pertama pengguna
+% tidak perlu menunggu unduhan.
+%
+% Sengaja memuat paket yang dipakai template bawaan aplikasi (amsmath,
+% graphicx, hyperref) plus paket umum lain. Tanpa ini, cache bawaan image hanya
+% berisi article.cls sehingga compile pertama memakan ~30 detik.
+\documentclass[11pt]{article}
+
+% --- paket template bawaan aplikasi ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{hyperref}
+
+% --- paket umum lain ---
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{caption}
+\usepackage{enumitem}
+\usepackage{float}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{url}
+\usepackage{verbatim}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{parskip}
+\usepackage[english]{babel}
+
+\begin{document}
+
+\title{Pemanasan cache}
+\author{LaTeX Web Editor}
+\date{\today}
+\maketitle
+
+\begin{abstract}
+Ringkasan singkat.
+\end{abstract}
+
+\tableofcontents
+
+\section{Pendahuluan}
+Teks biasa dengan rumus inline $E = mc^2$ dan rujukan silang
+\ref{eq:integral}.
+
+\section{Metode}
+\begin{equation}
+  \int_0^1 x^2 \, dx = \frac{1}{3}
+  \label{eq:integral}
+\end{equation}
+
+\begin{align}
+  a &= b + c \\
+  d &= e - f
+\end{align}
+
+\begin{itemize}
+  \item Butir pertama
+  \item Butir kedua
+\end{itemize}
+
+\begin{enumerate}
+  \item Nomor satu
+  \item Nomor dua
+\end{enumerate}
+
+\begin{table}[H]
+  \centering
+  \begin{tabular}{lcr}
+    \toprule
+    Kiri & Tengah & Kanan \\
+    \midrule
+    a & b & c \\
+    \bottomrule
+  \end{tabular}
+  \caption{Contoh tabel}
+\end{table}
+
+\begin{verbatim}
+contoh verbatim
+\end{verbatim}
+
+\begin{lstlisting}[language=Python]
+def halo():
+    return "hai"
+\end{lstlisting}
+
+\section{Kesimpulan}
+Selesai. Lihat \url{https://example.com}.
+
+\end{document}
