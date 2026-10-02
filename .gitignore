@@ -23,3 +23,5 @@ tools/tectonic.exe
 
 # File kerja sementara
 *.bin
+.tmp-*
+.tmp/
