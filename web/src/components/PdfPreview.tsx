@@ -35,6 +35,7 @@ export function PdfPreview() {
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [docReady, setDocReady] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   const canRender = pdfVersion > 0 || result?.hasPdf;
   const hasPages = numPages > 0;
@@ -45,6 +46,7 @@ export function PdfPreview() {
     let cancelled = false;
     setLoading(true);
     setNumPages(0);
+    setError(null);
 
     docRef.current?.destroy();
     docRef.current = null;
@@ -74,7 +76,14 @@ export function PdfPreview() {
         metaRef.current = metas;
         setNumPages(doc.numPages);
       })
-      .catch(() => {})
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        // Jangan telan error: kalau PDF gagal dimuat (mis. worker ditolak
+        // karena MIME salah), tampilkan supaya tidak jadi panel kosong misterius.
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[pdf] gagal memuat dokumen:", e);
+        setError(msg);
+      })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
@@ -107,8 +116,13 @@ export function PdfPreview() {
         ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
         try {
           await page.render({ canvasContext: ctx, viewport }).promise;
-        } catch {
-          /* dibatalkan */
+        } catch (e) {
+          // Render bisa dibatalkan saat scale berubah (normal) — hanya
+          // laporkan bila benar-benar bukan pembatalan.
+          if (!cancelled) {
+            const msg = e instanceof Error ? e.message : String(e);
+            if (!/cancel/i.test(msg)) console.error("[pdf] gagal render halaman:", e);
+          }
         }
       }
       if (!cancelled) setDocReady((v) => v + 1);
@@ -275,7 +289,17 @@ export function PdfPreview() {
               );
             })}
 
-            {!canRender && !compiling && !loading && (
+            {error && !loading && (
+              <div className="flex flex-col items-center gap-2 px-6 py-20 text-center">
+                <FileText className="size-8 text-destructive opacity-70" />
+                <p className="text-sm font-medium text-destructive">
+                  Gagal memuat preview PDF
+                </p>
+                <p className="max-w-md text-xs text-muted-foreground">{error}</p>
+              </div>
+            )}
+
+            {!canRender && !compiling && !loading && !error && (
               <div className="flex flex-col items-center gap-2 px-6 py-20 text-center text-muted-foreground">
                 <FileText className="size-8 opacity-50" />
                 <p className="text-sm">
