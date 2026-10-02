@@ -159,7 +159,14 @@ function TreeNode({ node, depth, rootFile, onRequestDelete }: NodeProps) {
   );
 }
 
-export function FileTree() {
+export function FileTree({
+  className,
+  hideHeader = false,
+}: {
+  className?: string;
+  /** Sembunyikan header bawaan (dipakai saat ditampilkan dalam drawer). */
+  hideHeader?: boolean;
+} = {}) {
   const tree = useStore((s) => s.tree);
   const project = useStore((s) => s.project);
   const createFile = useStore((s) => s.createFile);
@@ -198,7 +205,8 @@ export function FileTree() {
   };
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r bg-card">
+    <aside className={cn("flex w-60 shrink-0 flex-col border-r bg-card", className)}>
+      {!hideHeader && (
       <div className="flex h-10 shrink-0 items-center justify-between border-b px-2">
         <span className="pl-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
           Files
@@ -239,6 +247,7 @@ export function FileTree() {
           </Button>
         </div>
       </div>
+      )}
 
       <ScrollArea className="flex-1">
         <div className="p-1.5">

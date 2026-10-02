@@ -118,8 +118,8 @@ export function SharePage({ token }: { token: string }) {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        {/* File list */}
-        <aside className="w-56 shrink-0 overflow-auto border-r bg-card py-1.5">
+        {/* File list — di mobile disembunyikan agar editor/PDF lega. */}
+        <aside className="hidden w-56 shrink-0 overflow-auto border-r bg-card py-1.5 md:block">
           <p className="px-3 pb-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
             Files
           </p>
@@ -240,7 +240,7 @@ function SharePdf({
   }, [token, version, hasPdf, scale]);
 
   return (
-    <section className="flex min-w-0 bg-muted/30" style={{ width: "46%" }}>
+    <section className="flex min-w-0 flex-col bg-muted/30 md:w-[46%]">
       <div ref={scrollRef} className="h-full w-full overflow-auto p-4">
         {!hasPdf && (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">

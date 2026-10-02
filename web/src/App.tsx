@@ -1,11 +1,29 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useSession } from "./auth/client";
 import { useSettings } from "./store/settings";
 import { AuthPage } from "./components/AuthPage";
 import { Dashboard } from "./components/Dashboard";
-import { Workspace } from "./components/Workspace";
-import { SharePage } from "./components/SharePage";
 import { Spinner } from "@/components/ui/spinner";
+
+/**
+ * Workspace & SharePage di-lazy-load karena keduanya menarik Monaco Editor
+ * (~3 MB) dan PDF.js. Tanpa ini, halaman login/dashboard ikut memuatnya
+ * sehingga pembukaan awal terasa lambat — terutama di jaringan mobile.
+ */
+const Workspace = lazy(() =>
+  import("./components/Workspace").then((m) => ({ default: m.Workspace })),
+);
+const SharePage = lazy(() =>
+  import("./components/SharePage").then((m) => ({ default: m.SharePage })),
+);
+
+function Loading() {
+  return (
+    <div className="flex min-h-full items-center justify-center bg-background">
+      <Spinner className="size-6 text-muted-foreground" />
+    </div>
+  );
+}
 
 /** Router sederhana berbasis hash: #/project/<id>, #/share/<token> */
 export function App() {
@@ -27,15 +45,15 @@ export function App() {
   // Halaman share publik: bisa diakses tanpa login.
   const shareMatch = /^#\/share\/([\w-]+)/.exec(route);
   if (shareMatch) {
-    return <SharePage token={shareMatch[1]} key={shareMatch[1]} />;
+    return (
+      <Suspense fallback={<Loading />}>
+        <SharePage token={shareMatch[1]} key={shareMatch[1]} />
+      </Suspense>
+    );
   }
 
   if (isPending) {
-    return (
-      <div className="flex min-h-full items-center justify-center bg-background">
-        <Spinner className="size-6 text-muted-foreground" />
-      </div>
-    );
+    return <Loading />;
   }
 
   if (!session?.user) {
@@ -44,7 +62,11 @@ export function App() {
 
   const m = /^#\/project\/([\w-]+)/.exec(route);
   if (m) {
-    return <Workspace projectId={m[1]} key={m[1]} />;
+    return (
+      <Suspense fallback={<Loading />}>
+        <Workspace projectId={m[1]} key={m[1]} />
+      </Suspense>
+    );
   }
   return <Dashboard />;
 }

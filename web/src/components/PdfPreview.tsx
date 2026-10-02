@@ -6,6 +6,7 @@ import { useStore } from "../store";
 import { api } from "../api";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -17,7 +18,7 @@ interface PageMeta {
   height: number;
 }
 
-export function PdfPreview() {
+export function PdfPreview({ className }: { className?: string } = {}) {
   const project = useStore((s) => s.project);
   const pdfVersion = useStore((s) => s.pdfVersion);
   const result = useStore((s) => s.result);
@@ -203,7 +204,7 @@ export function PdfPreview() {
   };
 
   return (
-    <section className="flex min-w-0 flex-col bg-muted/30" style={{ width: "46%" }}>
+    <section className={cn("flex min-w-0 flex-col bg-muted/30", className)}>
       <div className="flex h-10 shrink-0 items-center gap-1.5 border-b bg-card px-2">
         <Button
           variant="ghost"

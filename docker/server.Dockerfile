@@ -37,12 +37,13 @@ COPY server ./server
 # pandoc: dipakai untuk export docx/html/odt/pptx/epub.
 ARG TECTONIC_VERSION=0.17.0
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl xz-utils pandoc \
+ && apt-get install -y --no-install-recommends ca-certificates curl xz-utils pandoc git \
  && curl -fsSL "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%40${TECTONIC_VERSION}/tectonic-${TECTONIC_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
       | tar -xz -C /usr/local/bin tectonic \
  && chmod +x /usr/local/bin/tectonic \
  && tectonic --version \
  && pandoc --version | head -1 \
+ && git --version \
  && rm -rf /var/lib/apt/lists/*
 
 # Pre-warm cache bundle TeX supaya compile pertama tidak perlu unduh ulang.
