@@ -5,6 +5,7 @@ import { useStore } from "../store";
 import { useServerEvents } from "../hooks/useServerEvents";
 import { Toolbar } from "./Toolbar";
 import { FileTree } from "./FileTree";
+import { OutlinePanel } from "./OutlinePanel";
 import { EditorPane } from "./Editor";
 import { PdfPreview } from "./PdfPreview";
 import { Button } from "@/components/ui/button";
@@ -98,14 +99,15 @@ export function Workspace({ projectId }: { projectId: string }) {
       </div>
 
       <div className="flex min-h-0 flex-1">
-        {/* File tree — kolom tetap di >= md, drawer overlay di mobile. */}
+        {/* File tree + outline — kolom tetap di >= md, drawer overlay di mobile. */}
         <div
           className={cn(
-            "min-h-0 shrink-0",
+            "min-h-0 shrink-0 flex-col",
             view === "files" ? "flex w-full md:w-60" : "hidden md:flex md:w-60",
           )}
         >
-          <FileTree className="w-full" />
+          <FileTree className="w-full min-h-0 flex-1 border-r-0" />
+          <OutlinePanel className="w-full shrink-0" />
         </div>
 
         {/* Drawer file tree khusus mobile. */}
