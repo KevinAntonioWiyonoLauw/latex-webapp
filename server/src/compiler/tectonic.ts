@@ -69,7 +69,12 @@ export async function runTectonic(opts: {
   onSpawn?: (child: import("node:child_process").ChildProcess) => void;
 }): Promise<TectonicRunResult> {
   const direct = await runOnce(opts, opts.rootFile, opts.outDir);
-  if (direct.exitCode === 0 && !direct.timedOut) return direct;
+  if (direct.exitCode === 0 && !direct.timedOut) {
+    // Tectonic menamai output mengikuti nama file root (mis. `thesis.pdf`),
+    // sedangkan route PDF selalu membaca `main.pdf`. Normalkan namanya.
+    await normalizeOutputs(opts.outDir, path.basename(opts.rootFile));
+    return direct;
+  }
 
   // Compile gagal — coba lagi lewat shim, tapi hanya bila masuk akal
   // (mis. error "not found" / undefined control sequence), bukan timeout.
@@ -78,6 +83,30 @@ export async function runTectonic(opts: {
   const wrapped = await runWrapped(opts);
   if (wrapped) return wrapped;
   return direct;
+}
+
+/**
+ * Pastikan file output bernama `main.*` seperti yang diharapkan storage.
+ * Bila `main.pdf` sudah ada, tidak melakukan apa-apa.
+ */
+async function normalizeOutputs(outDir: string, baseName: string): Promise<void> {
+  if (fs.existsSync(path.join(outDir, "main.pdf"))) return;
+  const base = baseName.replace(/\.tex$/i, "");
+  const pairs: [string, string][] = [
+    [`${base}.pdf`, "main.pdf"],
+    [`${base}.log`, "main.log"],
+    [`${base}.synctex.gz`, "main.synctex.gz"],
+    [`${base}.synctex`, "main.synctex"],
+  ];
+  for (const [from, to] of pairs) {
+    const src = path.join(outDir, from);
+    const dst = path.join(outDir, to);
+    try {
+      if (fs.existsSync(src)) await fsp.rename(src, dst);
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 /** Jalankan tectonic sekali pada input tertentu. */
