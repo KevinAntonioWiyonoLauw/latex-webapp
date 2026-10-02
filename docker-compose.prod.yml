@@ -17,6 +17,7 @@ name: latex-webapp-prod
 services:
   postgres:
     image: postgres:17-alpine
+    container_name: latex-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-latex}
@@ -33,6 +34,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    container_name: latex-redis
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
@@ -46,6 +48,7 @@ services:
 
   server:
     image: ${LATEX_IMAGE_SERVER:-ghcr.io/kevinantoniowiyonolauw/latex-webapp-server:latest}
+    container_name: latex-server
     restart: unless-stopped
     environment:
       HOST: 0.0.0.0
@@ -95,6 +98,7 @@ services:
 
   collab:
     image: ${LATEX_IMAGE_COLLAB:-ghcr.io/kevinantoniowiyonolauw/latex-webapp-collab:latest}
+    container_name: latex-collab
     restart: unless-stopped
     environment:
       COLLAB_HOST: 0.0.0.0
@@ -120,6 +124,7 @@ services:
 
   web:
     image: ${LATEX_IMAGE_WEB:-ghcr.io/kevinantoniowiyonolauw/latex-webapp-web:latest}
+    container_name: latex-web
     restart: unless-stopped
     networks: [proxy]
     labels:
