@@ -13,6 +13,16 @@ import {
 const WORKSPACE_DIR = "workspace";
 const OUTPUT_DIR = ".output";
 
+/** Ukuran file bila ada; 0 bila tidak ada / tidak bisa dibaca. */
+async function fileSizeIfExists(p: string): Promise<number> {
+  try {
+    const st = await fsp.stat(p);
+    return st.size;
+  } catch {
+    return 0;
+  }
+}
+
 /**
  * Storage level FILE (disk) untuk sebuah project.
  * Metadata project (nama, owner, rootFile, ACL) disimpan di PostgreSQL
@@ -113,6 +123,26 @@ export class Storage {
   /** Tulis file teks (buat folder parent bila perlu). */
   async writeFile(id: string, rel: string, content: string): Promise<void> {
     const abs = safeResolve(this.workspaceDir(id), rel);
+
+    // PENGAMAN ANTI DATA-LOSS (jalur autosave HTTP).
+    // Klien yang masih memegang tab berisi KOSONG (mis. sisa keadaan rusak
+    // sebelum perbaikan kolaborasi) akan menulis kekosongan itu setiap kali
+    // autosave/compile berjalan, sehingga dokumen berisi terus-menerus
+    // dikosongkan dan compile gagal dengan "Emergency stop".
+    //
+    // Menolak penulisan kosong ke file yang masih berisi jauh lebih aman:
+    // menghapus seluruh isi dokumen selalu bisa dilakukan lewat tombol hapus,
+    // sedangkan kehilangan dokumen tidak bisa dibatalkan.
+    if (content.length === 0) {
+      const existing = await fileSizeIfExists(abs);
+      if (existing > 0) {
+        throw new Error(
+          `Ditolak: menulis konten kosong ke "${rel}" yang masih berisi ${existing} byte. ` +
+            `Muat ulang halaman (Ctrl+Shift+R) agar editor sinkron dengan file di server.`,
+        );
+      }
+    }
+
     await ensureDir(path.dirname(abs));
     await fsp.writeFile(abs, content, "utf8");
   }

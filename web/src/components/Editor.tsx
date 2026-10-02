@@ -159,6 +159,23 @@ export function EditorPane() {
     setCompletionContext({ labels, bibKeys });
   }, [tabs]);
 
+  // Sinkronkan konten tab -> editor Monaco.
+  //
+  // Monaco dipasang dengan `defaultValue` (uncontrolled), jadi perubahan pada
+  // store TIDAK otomatis tampil di editor. Diperlukan agar self-heal bekerja:
+  // ketika server menolak menyimpan konten kosong, store memuat ulang isi dari
+  // server, dan efek ini menampilkannya kembali di editor.
+  useEffect(() => {
+    if (!active) return;
+    // Saat kolaborasi aktif, isi dokumen dikelola Y.Doc (MonacoBinding).
+    if (collabRef.current) return;
+    const model = editorRef.current?.getModel();
+    if (!model) return;
+    if (model.getValue() !== active.content) {
+      model.setValue(active.content);
+    }
+  }, [active?.path, active?.content]);
+
   const onChange = (value: string | undefined) => {
     if (value === undefined) return;
     setWordCount(countWords(value));

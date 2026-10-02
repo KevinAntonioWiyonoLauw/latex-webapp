@@ -160,6 +160,26 @@ export const useStore = create<State>((set, get) => ({
         ),
       }));
     } catch (err) {
+      // Self-heal: server menolak menyimpan (mis. menolak konten kosong karena
+      // file di server masih berisi). Kondisi ini muncul bila tab di browser
+      // memegang salinan kosong yang basi. Muat ulang isi dari server supaya
+      // editor sinkron kembali, bukan terus mencoba menulis kekosongan.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/Ditolak|kosong/i.test(msg)) {
+        try {
+          const fresh = await api.readFile(p.id, path);
+          set((s) => ({
+            tabs: s.tabs.map((t) =>
+              t.path === path
+                ? { ...t, content: fresh, dirty: false, saving: false }
+                : t,
+            ),
+          }));
+          return;
+        } catch {
+          /* lanjut ke penanganan error biasa */
+        }
+      }
       set((s) => ({
         tabs: s.tabs.map((t) =>
           t.path === path ? { ...t, saving: false } : t,
