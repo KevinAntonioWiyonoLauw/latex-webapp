@@ -168,8 +168,25 @@ export class Storage {
 
   /** Rename / pindah file. */
   async rename(id: string, from: string, to: string): Promise<void> {
-    const absFrom = safeResolve(this.workspaceDir(id), from);
-    const absTo = safeResolve(this.workspaceDir(id), to);
+    if (from === to) return;
+    const ws = this.workspaceDir(id);
+    const absFrom = safeResolve(ws, from);
+    const absTo = safeResolve(ws, to);
+
+    // Tolak memindahkan folder ke dalam dirinya sendiri atau sub-foldernya —
+    // kalau dibiarkan, `fs.rename` bisa membuat struktur tak terpakai / gagal
+    // dengan pesan yang membingungkan.
+    const relTo = path.relative(absFrom, absTo);
+    if (relTo === "" || (!relTo.startsWith("..") && !path.isAbsolute(relTo))) {
+      throw new Error("Tidak bisa memindahkan folder ke dalam dirinya sendiri");
+    }
+
+    // PENGAMAN: jangan menimpa file/folder yang sudah ada. `fs.rename` diam-diam
+    // menimpa tujuan, sehingga drag & drop yang salah bisa menghapus file lain.
+    if (exists(absTo)) {
+      throw new Error(`"${to}" sudah ada — pindahkan ke nama lain`);
+    }
+
     await ensureDir(path.dirname(absTo));
     await fsp.rename(absFrom, absTo);
   }

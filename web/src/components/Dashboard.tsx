@@ -11,6 +11,8 @@ import {
   Trash2,
   Copy,
   FileArchive,
+  Search,
+  ArrowUpDown,
 } from "lucide-react";
 import { api } from "@/api";
 import { navigate } from "@/App";
@@ -49,6 +51,24 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
+
+type SortKey = "name" | "updated" | "rootFile";
+
+/** Format waktu ringkas & mudah dibaca (mis. "2 Okt 2026, 21.10"). */
+function fmtTime(ts: number): string {
+  try {
+    return new Date(ts).toLocaleString("id-ID", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "-";
+  }
+}
 
 export function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -57,6 +77,8 @@ export function Dashboard() {
   const [template, setTemplate] = useState("article");
   const [busy, setBusy] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Project | null>(null);
+  const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("updated");
   const zipRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
@@ -118,20 +140,56 @@ export function Dashboard() {
     }
   };
 
+  /* --------------------------- filter & urut --------------------------- */
+  const q = query.trim().toLowerCase();
+  const shown = projects
+    .filter((p) => !q || p.name.toLowerCase().includes(q) || p.rootFile.toLowerCase().includes(q))
+    .sort((a, b) => {
+      if (sortKey === "name") return a.name.localeCompare(b.name, "id");
+      if (sortKey === "rootFile") return a.rootFile.localeCompare(b.rootFile, "id");
+      return b.updatedAt - a.updatedAt; // terbaru dulu
+    });
+
+  /** Tombol urut untuk header kolom. */
+  const SortHeader = ({
+    label,
+    k,
+    className,
+  }: {
+    label: string;
+    k: SortKey;
+    className?: string;
+  }) => (
+    <button
+      type="button"
+      onClick={() => setSortKey(k)}
+      className={cn(
+        "inline-flex items-center gap-1 hover:text-foreground",
+        sortKey === k ? "text-foreground" : "text-muted-foreground",
+        className,
+      )}
+    >
+      {label}
+      <ArrowUpDown className="size-3" />
+    </button>
+  );
+
   return (
     <div className="min-h-full overflow-auto bg-background">
-      <div className="mx-auto max-w-5xl px-6 py-12">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
         <header className="mb-8 flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <FileCode2 className="size-5" />
           </div>
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">LaTeX Web Editor</h1>
-            <p className="text-sm text-muted-foreground">
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-semibold tracking-tight">
+              LaTeX Web Editor
+            </h1>
+            <p className="truncate text-sm text-muted-foreground">
               Tulis, compile, dan preview LaTeX di browser.
             </p>
           </div>
-          <div className="ml-auto">
+          <div className="ml-auto shrink-0">
             <UserMenu onSignedOut={() => navigate("/")} />
           </div>
         </header>
@@ -194,10 +252,19 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-wrap items-center gap-3">
           <h2 className="text-sm font-medium text-muted-foreground">
             Project Anda ({projects.length})
           </h2>
+          <div className="relative ml-auto w-full sm:w-64">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Cari project…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="h-8 pl-8"
+            />
+          </div>
         </div>
 
         {projects.length === 0 ? (
@@ -208,77 +275,92 @@ export function Dashboard() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {projects.map((p) => (
-              <Card
-                key={p.id}
-                className="group cursor-pointer transition-colors hover:border-primary/60"
-                onClick={() => navigate(`/project/${p.id}`)}
-              >
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="truncate text-base">{p.name}</CardTitle>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-7 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreVertical />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        onClick={(e) => e.stopPropagation()}
+          <div className="overflow-hidden rounded-lg border">
+            {/* Tabel (desktop & tablet) */}
+            <table className="hidden w-full table-fixed border-collapse text-sm md:table">
+              <thead>
+                <tr className="border-b bg-muted/40 text-left text-xs">
+                  <th className="w-[42%] px-3 py-2 font-medium">
+                    <SortHeader label="Nama project" k="name" />
+                  </th>
+                  <th className="w-[22%] px-3 py-2 font-medium">
+                    <SortHeader label="File utama" k="rootFile" />
+                  </th>
+                  <th className="w-[24%] px-3 py-2 font-medium">
+                    <SortHeader label="Terakhir diubah" k="updated" />
+                  </th>
+                  <th className="w-[12%] px-3 py-2 text-right font-medium text-muted-foreground">
+                    Aksi
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((p) => (
+                  <tr
+                    key={p.id}
+                    onClick={() => navigate(`/project/${p.id}`)}
+                    className="group cursor-pointer border-b last:border-0 hover:bg-accent/50"
+                  >
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <FileCode2 className="size-4 shrink-0 text-amber-400" />
+                        <span className="truncate font-medium" title={p.name}>
+                          {p.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className="block truncate font-mono text-xs text-muted-foreground"
+                        title={p.rootFile}
                       >
-                        <DropdownMenuItem
-                          onSelect={async () => {
-                            try {
-                              const c = await api.cloneProject(p.id);
-                              toast.success("Project diduplikat");
-                              navigate(`/project/${c.id}`);
-                            } catch (err) {
-                              toast.error("Gagal menduplikat", {
-                                description: (err as Error).message,
-                              });
-                            }
-                          }}
-                        >
-                          <Copy />
-                          Duplikat
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onSelect={() =>
-                            window.open(api.exportUrl(p.id), "_blank")
-                          }
-                        >
-                          <FileArchive />
-                          Export .zip
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          variant="destructive"
-                          onSelect={() => setPendingDelete(p)}
-                        >
-                          <Trash2 />
-                          Hapus project
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                        {p.rootFile}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap text-xs text-muted-foreground">
+                      {fmtTime(p.updatedAt)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <ProjectMenu
+                        project={p}
+                        onDelete={() => setPendingDelete(p)}
+                        alwaysVisible={false}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Daftar (mobile) */}
+            <ul className="divide-y md:hidden">
+              {shown.map((p) => (
+                <li
+                  key={p.id}
+                  onClick={() => navigate(`/project/${p.id}`)}
+                  className="flex cursor-pointer items-center gap-3 px-3 py-3 active:bg-accent/50"
+                >
+                  <FileCode2 className="size-4 shrink-0 text-amber-400" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{p.name}</p>
+                    <p className="truncate font-mono text-xs text-muted-foreground">
+                      {p.rootFile} · {fmtTime(p.updatedAt)}
+                    </p>
                   </div>
-                  <CardDescription className="truncate font-mono text-xs">
-                    {p.rootFile}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-xs text-muted-foreground">
-                    Diubah {new Date(p.updatedAt).toLocaleString("id-ID")}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
+                  <ProjectMenu
+                    project={p}
+                    onDelete={() => setPendingDelete(p)}
+                    alwaysVisible
+                  />
+                </li>
+              ))}
+            </ul>
+
+            {shown.length === 0 && (
+              <p className="p-6 text-center text-sm text-muted-foreground">
+                Tidak ada project yang cocok dengan “{query}”.
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -308,5 +390,65 @@ export function Dashboard() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+/** Menu aksi (duplikat / export / hapus) untuk satu project. */
+function ProjectMenu({
+  project,
+  onDelete,
+  alwaysVisible,
+}: {
+  project: Project;
+  onDelete: () => void;
+  alwaysVisible: boolean;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(
+            "size-7 shrink-0",
+            !alwaysVisible &&
+              "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+          )}
+          onClick={(e) => e.stopPropagation()}
+          title="Aksi project"
+        >
+          <MoreVertical className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+        <DropdownMenuItem
+          onSelect={async () => {
+            try {
+              const c = await api.cloneProject(project.id);
+              toast.success("Project diduplikat");
+              navigate(`/project/${c.id}`);
+            } catch (err) {
+              toast.error("Gagal menduplikat", {
+                description: (err as Error).message,
+              });
+            }
+          }}
+        >
+          <Copy />
+          Duplikat
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => window.open(api.exportUrl(project.id), "_blank")}
+        >
+          <FileArchive />
+          Export .zip
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+          <Trash2 />
+          Hapus project
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

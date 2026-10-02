@@ -45,6 +45,10 @@ interface State {
   createFile: (path: string, content?: string) => Promise<void>;
   createFolder: (path: string) => Promise<void>;
   deletePath: (path: string) => Promise<void>;
+  /** Pindahkan / ganti nama file atau folder (drag & drop). */
+  movePath: (from: string, to: string) => Promise<void>;
+  /** Ganti nama file di folder yang sama. */
+  renamePath: (path: string, newName: string) => Promise<void>;
   uploadFiles: (files: File[], basePath?: string) => Promise<void>;
   setRootFile: (path: string) => Promise<void>;
 
@@ -228,6 +232,38 @@ export const useStore = create<State>((set, get) => ({
       activePath: s.activePath === path ? null : s.activePath,
     }));
     await get().refreshTree();
+  },
+
+  /**
+   * Pindahkan / ganti nama file atau folder (dipakai drag & drop di file tree).
+   * Semua tab yang menunjuk ke dalam path lama ikut diperbarui agar isinya
+   * tidak "hilang" setelah dipindah.
+   */
+  async movePath(from, to) {
+    const p = get().project;
+    if (!p || from === to) return;
+    await api.rename(p.id, from, to);
+
+    // Perbarui tab & file aktif bila berada di dalam path yang dipindah.
+    const remap = (old: string) => {
+      if (old === from) return to;
+      if (old.startsWith(`${from}/`)) return to + old.slice(from.length);
+      return old;
+    };
+    set((s) => ({
+      tabs: s.tabs.map((t) => (t.path === from || t.path.startsWith(`${from}/`)
+        ? { ...t, path: remap(t.path) }
+        : t)),
+      activePath: s.activePath ? remap(s.activePath) : s.activePath,
+    }));
+    await get().refreshTree();
+  },
+
+  /** Ganti nama satu file (tanpa memindah folder). */
+  async renamePath(path, newName) {
+    const parent = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+    const to = parent ? `${parent}/${newName}` : newName;
+    await get().movePath(path, to);
   },
 
   async uploadFiles(files, basePath = "") {
