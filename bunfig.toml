@@ -1,0 +1,10 @@
+# Konfigurasi Bun untuk monorepo.
+# Dokumentasi: https://bun.sh/docs/runtime/bunfig
+
+[install]
+# Gunakan lockfile teks (default) dan auto-install peer deps.
+exact = false
+
+[run]
+# Jalankan tanpa buffering output agar log dev langsung terlihat.
+bun = true

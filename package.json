@@ -1,0 +1,34 @@
+{
+  "name": "latex-webapp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Web-based LaTeX editor & compiler (Overleaf/TexPage-like)",
+  "workspaces": [
+    "packages/*",
+    "server",
+    "collab",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,green \"bun run dev:server\" \"bun run dev:web\"",
+    "dev:all": "concurrently -n server,collab,web -c blue,magenta,green \"bun run dev:server\" \"bun run dev:collab\" \"bun run dev:web\"",
+    "dev:server": "bun run --filter server dev",
+    "dev:collab": "bun run scripts/collab-launcher.ts --watch",
+    "start:collab": "bun run scripts/collab-launcher.ts",
+    "dev:web": "bun run --filter web dev",
+    "build": "bun run --filter server build && bun run --filter collab build && bun run --filter web build",
+    "typecheck": "bun run --filter server typecheck && bun run --filter collab typecheck && bun run --filter web typecheck",
+    "start:server": "bun run --filter server start"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "shadcn": "^4.21.1",
+    "typescript": "^5.7.3"
+  },
+  "trustedDependencies": [
+    "@latex/shared"
+  ],
+  "engines": {
+    "bun": ">=1.2.0"
+  }
+}

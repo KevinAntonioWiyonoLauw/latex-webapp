@@ -1,0 +1,22 @@
+node_modules/
+dist/
+build/
+*.log
+.DS_Store
+.env
+.env.local
+
+# App runtime
+server/data/
+web/dist/
+tools/*.zip
+
+# Binary Tectonic lokal (Windows). Image Docker memakai binary Linux sendiri
+# yang diunduh saat build — jadi tidak perlu ikut ke repo (51 MB).
+tools/tectonic
+tools/tectonic.exe
+
+# Editor
+.vscode/
+.idea/
+*.tsbuildinfo

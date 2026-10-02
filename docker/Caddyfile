@@ -1,0 +1,26 @@
+# Konfigurasi Caddy untuk LaTeX Web Editor.
+# HTTPS otomatis via Let's Encrypt untuk domain di ${DOMAIN}.
+
+{$DOMAIN} {
+	encode gzip
+
+	# Frontend (static)
+	handle {
+		reverse_proxy web:80
+	}
+
+	# API backend (pertahankan prefix /api)
+	handle /api/* {
+		reverse_proxy server:5174
+	}
+
+	# WebSocket event compile
+	handle /ws {
+		reverse_proxy server:5174
+	}
+
+	# WebSocket kolaborasi (Yjs)
+	handle /collab {
+		reverse_proxy collab:1234
+	}
+}

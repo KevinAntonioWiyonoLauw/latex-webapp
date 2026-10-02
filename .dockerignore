@@ -1,0 +1,20 @@
+# Jangan kirim ke context build Docker (memperkecil context & mempercepat build).
+node_modules
+**/node_modules
+dist
+**/dist
+.git
+.github
+.env
+.env.*
+!.env.example
+*.log
+.vscode
+.idea
+*.tsbuildinfo
+.DS_Store
+
+# Data runtime & binary lokal (image pakai versi Linux sendiri).
+server/data
+tools
+web/dist

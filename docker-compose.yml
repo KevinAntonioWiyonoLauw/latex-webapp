@@ -1,0 +1,49 @@
+# Docker Compose untuk LaTeX Web Editor.
+# Semua service TERPISAH dari project lain (port khusus, volume ber-prefix "latex-").
+#
+# Cara pakai (dev):
+#   docker compose up -d postgres redis
+#   bun run dev
+#
+# Cara pakai (produksi, nanti):
+#   docker compose up -d --build
+
+name: latex-webapp
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: latex-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: latex
+      POSTGRES_PASSWORD: latex
+      POSTGRES_DB: latex
+    ports:
+      - "5437:5432"
+    volumes:
+      - latex-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U latex -d latex"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: latex-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6381:6379"
+    volumes:
+      - latex-redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  latex-pgdata:
+  latex-redisdata:

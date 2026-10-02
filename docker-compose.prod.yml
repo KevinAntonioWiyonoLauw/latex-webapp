@@ -1,0 +1,144 @@
+# Docker Compose PRODUKSI — LaTeX Web Editor (homelab / Portainer).
+#
+# Arsitektur:
+#   Cloudflare (latex.kevinio.my.id) -> Traefik (:80, entrypoint "web")
+#     -> web     (nginx, SPA statis)
+#     -> server  (Fastify API + compile Tectonic + pandoc)
+#     -> collab  (Hocuspocus / Yjs WebSocket)
+#
+# Image ditarik dari GHCR (dibangun oleh GitHub Actions), BUKAN di-build di sini.
+# Tidak ada Caddy: TLS + routing ditangani Traefik yang sudah ada di homelab.
+#
+# Deploy via Portainer (Stacks > Add stack > Web editor), atau manual:
+#   docker compose -f docker-compose.prod.yml up -d
+
+name: latex-webapp-prod
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-latex}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-latex}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-latex} -d ${POSTGRES_DB:-latex}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks: [internal]
+
+  server:
+    image: ${LATEX_IMAGE_SERVER:-ghcr.io/kevinantoniowiyonolauw/latex-webapp-server:latest}
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: 5174
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:-latex}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-latex}
+      REDIS_URL: redis://redis:6379
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET (min 32 chars)}
+      BETTER_AUTH_URL: https://${DOMAIN:-latex.kevinio.my.id}
+      WEB_ORIGIN: https://${DOMAIN:-latex.kevinio.my.id}
+      COOKIE_SECURE: "true"
+      # OAuth opsional — kosongkan bila tidak dipakai (login email/password tetap jalan).
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      TECTONIC_BIN: /usr/local/bin/tectonic
+      LATEX_DATA_DIR: /data/projects
+      COMPILE_TIMEOUT_MS: ${COMPILE_TIMEOUT_MS:-120000}
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-104857600}
+      TZ: ${TZ:-Asia/Jakarta}
+    volumes:
+      # Dokumen user di bind-mount host -> gampang di-backup.
+      - ${LATEX_DATA_PATH:-/opt/latex-webapp/data}:/data
+      # Cache bundle TeX Tectonic: agar tidak unduh ulang tiap restart container.
+      - tectonic-cache:/root/.cache/Tectonic
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [internal, proxy]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      # API backend (prefix /api dipertahankan apa adanya).
+      - traefik.http.routers.latex-api.entrypoints=web
+      - traefik.http.routers.latex-api.rule=Host(`${DOMAIN:-latex.kevinio.my.id}`) && PathPrefix(`/api`)
+      - traefik.http.routers.latex-api.service=latex-api
+      - traefik.http.services.latex-api.loadbalancer.server.port=5174
+      # WebSocket event compile (/ws).
+      - traefik.http.routers.latex-ws.entrypoints=web
+      - traefik.http.routers.latex-ws.rule=Host(`${DOMAIN:-latex.kevinio.my.id}`) && PathPrefix(`/ws`)
+      - traefik.http.routers.latex-ws.service=latex-ws
+      - traefik.http.services.latex-ws.loadbalancer.server.port=5174
+
+  collab:
+    image: ${LATEX_IMAGE_COLLAB:-ghcr.io/kevinantoniowiyonolauw/latex-webapp-collab:latest}
+    restart: unless-stopped
+    environment:
+      COLLAB_HOST: 0.0.0.0
+      COLLAB_PORT: 1234
+      # collab memverifikasi akses user dengan memanggil backend.
+      COLLAB_API_URL: http://server:5174
+      LATEX_DATA_DIR: /data/projects
+      TZ: ${TZ:-Asia/Jakarta}
+    volumes:
+      - ${LATEX_DATA_PATH:-/opt/latex-webapp/data}:/data
+    depends_on:
+      - server
+    networks: [internal, proxy]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      # Kolaborasi realtime (Yjs). Path /collab diteruskan tanpa strip:
+      # Hocuspocus membaca nama dokumen dari pesan WS, bukan dari path.
+      - traefik.http.routers.latex-collab.entrypoints=web
+      - traefik.http.routers.latex-collab.rule=Host(`${DOMAIN:-latex.kevinio.my.id}`) && PathPrefix(`/collab`)
+      - traefik.http.routers.latex-collab.service=latex-collab
+      - traefik.http.services.latex-collab.loadbalancer.server.port=1234
+
+  web:
+    image: ${LATEX_IMAGE_WEB:-ghcr.io/kevinantoniowiyonolauw/latex-webapp-web:latest}
+    restart: unless-stopped
+    networks: [proxy]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      # Frontend (catch-all) — aturan paling umum, ditaruh terakhir.
+      - traefik.http.routers.latex-web.entrypoints=web
+      - traefik.http.routers.latex-web.rule=Host(`${DOMAIN:-latex.kevinio.my.id}`)
+      - traefik.http.routers.latex-web.service=latex-web
+      - traefik.http.services.latex-web.loadbalancer.server.port=80
+
+networks:
+  # Jaringan bersama dengan Traefik (sudah ada di homelab).
+  proxy:
+    external: true
+  # Jaringan privat untuk postgres/redis/server/collab.
+  internal:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redisdata:
+  tectonic-cache:
