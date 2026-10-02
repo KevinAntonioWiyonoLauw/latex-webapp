@@ -20,3 +20,6 @@ tools/tectonic.exe
 .vscode/
 .idea/
 *.tsbuildinfo
+
+# File kerja sementara
+*.bin
