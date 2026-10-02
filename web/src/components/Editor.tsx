@@ -92,6 +92,21 @@ export function EditorPane() {
   const [mode, setMode] = useState<"code" | "visual">("code");
   /** File gambar yang menunggu konfirmasi penyisipan setelah drag & drop. */
   const [droppedImages, setDroppedImages] = useState<File[]>([]);
+  /**
+   * Monaco selesai dimuat?
+   *
+   * PENTING: Monaco dimuat sebagai chunk terpisah (~3 MB) dan `onMount` baru
+   * dipanggil SETELAH chunk itu selesai diunduh. Efek yang memulai kolaborasi
+   * berjalan jauh lebih awal (saat `activePath` berubah), sehingga saat itu
+   * `editorRef.current` masih null dan kolaborasi TIDAK PERNAH tersambung.
+   * Karena itu kita pakai state ini sebagai pemicu, bukan `editorRef.current`.
+   */
+  const [editorReady, setEditorReady] = useState(false);
+  /**
+   * Naik setiap Monaco selesai dipasang (termasuk saat dipasang ULANG setelah
+   * berpindah dari mode Visual). Dipakai sebagai pemicu efek kolaborasi.
+   */
+  const [editorEpoch, setEditorEpoch] = useState(0);
 
   /** Putuskan binding collab aktif (mis. saat ganti file / unmount). */
   const teardownCollab = useCallback(() => {
@@ -105,6 +120,9 @@ export function EditorPane() {
     editorRef.current = editor;
     monacoRef.current = monaco as unknown as typeof import("monaco-editor");
     setActiveEditor(editor);
+    // Picu efek kolaborasi: editor baru benar-benar siap pada titik ini.
+    setEditorReady(true);
+    setEditorEpoch((n) => n + 1);
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       const p = useStore.getState().activePath;
       if (p) void useStore.getState().saveFile(p).then(() => compile());
@@ -154,23 +172,42 @@ export function EditorPane() {
     [project, session],
   );
 
-  // Ganti file -> putuskan collab lama & sambung ke file baru.
+  // Ganti file -> putuskan collab lama & reset posisi scroll.
   useEffect(() => {
     teardownCollab();
     editorRef.current?.setScrollTop(0);
-    // Hitung kata untuk file aktif.
-    setWordCount(active ? countWords(active.content) : 0);
-    if (
-      settings.collabEnabled &&
-      activePath &&
-      project &&
-      editorRef.current
-    ) {
-      const t = setTimeout(() => startCollab(activePath), 150);
-      return () => clearTimeout(t);
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activePath, project?.id, settings.collabEnabled]);
+  }, [activePath, project?.id]);
+
+  // Hitung kata untuk file aktif.
+  useEffect(() => {
+    setWordCount(active ? countWords(active.content) : 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.path]);
+
+  /**
+   * Sambungkan kolaborasi realtime.
+   *
+   * Bergantung pada `editorReady` (bukan `editorRef.current`) supaya tetap
+   * berjalan walau Monaco baru selesai dimuat setelah file dibuka — inilah
+   * sebab utama kolaborasi sebelumnya tidak pernah tersambung.
+   */
+  useEffect(() => {
+    if (!settings.collabEnabled) return;
+    if (!activePath || !project || !editorReady) return;
+    const t = setTimeout(() => startCollab(activePath), 150);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePath, project?.id, settings.collabEnabled, editorReady, editorEpoch]);
+
+  /**
+   * Berpindah ke mode Visual membongkar Monaco -> koneksi collab harus
+   * ditutup, dan saat kembali ke mode Kode (Monaco dipasang ulang) efek di
+   * atas akan menyambungnya kembali lewat perubahan `editorEpoch`.
+   */
+  useEffect(() => {
+    if (mode !== "code") teardownCollab();
+  }, [mode, teardownCollab]);
 
   // Bersihkan saat komponen dibongkar.
   useEffect(
@@ -220,8 +257,14 @@ export function EditorPane() {
       if (labels.length || bibKeys.length)
         setCompletionContext({ labels, bibKeys });
     }
-    // Saat collab aktif, konten dikelola Y.Doc (server yang menyimpan).
-    if (collabRef.current) return;
+    // Saat collab aktif, isi dokumen dikelola Y.Doc (server yang menyimpan ke
+    // disk), jadi kita TIDAK memanggil saveFile di sini — kalau dipanggil,
+    // dua penulis akan saling menimpa. Tapi store tetap diperbarui supaya
+    // mode Visual, penghitung kata, dan pratinjau tidak basi.
+    if (collabRef.current) {
+      if (active) setFileContent(active.path, value);
+      return;
+    }
     if (!active) return;
     setFileContent(active.path, value);
     if (saveTimer.current) clearTimeout(saveTimer.current);
