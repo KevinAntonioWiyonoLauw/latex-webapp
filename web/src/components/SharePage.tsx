@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FileNode } from "@latex/shared";
-import * as pdfjsLib from "pdfjs-dist";
+import { configurePdfWorker, loadPdfDocument } from "@/lib/pdf";
 import MonacoEditor from "@monaco-editor/react";
 import { ArrowLeft, ChevronRight, FileCode2, FileText, Folder } from "lucide-react";
 import { api } from "@/api";
@@ -9,11 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
-// Worker PDF.js (sama seperti PdfPreview).
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url,
-).toString();
+// Worker PDF.js (lokal + fallback CDN) dikonfigurasi di `lib/pdf.ts`.
+configurePdfWorker();
 
 interface ShareMeta {
   id: string;
@@ -203,11 +200,11 @@ function SharePdf({
     if (!hasPdf && version === 0) return;
     let cancelled = false;
     setLoading(true);
-    const task = pdfjsLib.getDocument({
+    const task = loadPdfDocument({
       url: api.sharePdfUrl(token, version),
       withCredentials: false,
     });
-    task.promise
+    task
       .then(async (doc) => {
         if (cancelled) {
           void doc.destroy();

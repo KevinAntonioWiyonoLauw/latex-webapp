@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import * as pdfjsLib from "pdfjs-dist";
-import type { PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist";
+import { configurePdfWorker, loadPdfDocument } from "../lib/pdf";
+import type { PDFDocumentProxy, PDFPageProxy } from "../lib/pdf";
 import { ChevronLeft, ChevronRight, Minus, Plus, FileText } from "lucide-react";
 import { useStore } from "../store";
 import { api } from "../api";
@@ -8,10 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url,
-).toString();
+// Konfigurasi worker PDF.js (lokal + fallback CDN) ada di `lib/pdf.ts`.
+configurePdfWorker();
 
 interface PageMeta {
   width: number;
@@ -55,12 +53,12 @@ export function PdfPreview({ className }: { className?: string } = {}) {
     metaRef.current = [];
     canvasRefs.current.clear();
 
-    const task = pdfjsLib.getDocument({
+    const task = loadPdfDocument({
       url: api.pdfUrl(project.id, pdfVersion),
       withCredentials: false,
     });
 
-    task.promise
+    task
       .then(async (doc) => {
         if (cancelled) {
           void doc.destroy();
