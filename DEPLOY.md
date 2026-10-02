@@ -77,6 +77,7 @@ Di bagian **Environment variables** Portainer, tambahkan:
 | `POSTGRES_DB` | `latex` | – |
 | `LATEX_DATA_PATH` | `/opt/latex-webapp/data` | – |
 | `TZ` | `Asia/Jakarta` | – |
+| `COOKIE_SECURE` | `true` (default; jangan diubah bila lewat HTTPS) | – |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | dari Google Cloud Console | opsional |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | dari GitHub OAuth App | opsional |
 

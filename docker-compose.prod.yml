@@ -56,7 +56,7 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET (min 32 chars)}
       BETTER_AUTH_URL: https://${DOMAIN:-latex.kevinio.my.id}
       WEB_ORIGIN: https://${DOMAIN:-latex.kevinio.my.id}
-      COOKIE_SECURE: "true"
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
       # OAuth opsional — kosongkan bila tidak dipakai (login email/password tetap jalan).
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
